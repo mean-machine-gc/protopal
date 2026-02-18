@@ -35,6 +35,14 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mean-machine-gc/protopal.git"
+  },
+  "homepage": "https://github.com/mean-machine-gc/protopal#readme",
+  "bugs": {
+    "url": "https://github.com/mean-machine-gc/protopal/issues"
+  },
   "peerDependencies": {
     "@preact/signals-react": "^2.0.0",
     "react": "^16.8.0 || ^17.0.0 || ^18.0.0"

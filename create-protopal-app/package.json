@@ -25,5 +25,14 @@
     "signals",
     "react"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mean-machine-gc/protopal.git",
+    "directory": "create-protopal-app"
+  },
+  "homepage": "https://github.com/mean-machine-gc/protopal#readme",
+  "bugs": {
+    "url": "https://github.com/mean-machine-gc/protopal/issues"
+  }
 }

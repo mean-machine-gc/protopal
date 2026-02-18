@@ -1,10 +1,52 @@
 # Protopal
 
-A signals-based event sourcing runtime for prototyping domain models through interactive React applications.
+**Agent-friendly** event sourcing runtime for prototyping domain models through interactive React applications.
 
 ## What is Protopal?
 
 Protopal helps you discover domain models by building working prototypes that domain experts can interact with. The prototype isn't throwaway — it runs the same event sourcing pattern (command → decide → event → evolve → state) that your backend will implement.
+
+## For AI Agents 🤖
+
+**Protopal is designed agents-first** for interactive domain discovery. As an AI agent, you can rapidly prototype domain models by building working React applications that domain experts can immediately interact with and validate.
+
+### Agent Workflow
+
+1. **Receive domain description** from domain expert or requirements
+2. **Build working prototype** using Protopal's event sourcing patterns
+3. **Domain expert validates** by interacting with the live application
+4. **Iterate based on feedback** - modify the model, see changes instantly
+5. **Extract production artifacts** - the domain model is ready for backend implementation
+
+### Quick Agent Start
+
+```bash
+npx create-protopal-app my-domain-prototype
+```
+
+### Four Key Artifacts You Create
+
+As an agent, you maintain these four files in sync as the prototype evolves:
+
+1. **`model.ts`** - Domain types using discriminated unions
+2. **`deciders/`** - Business logic (decide + evolve functions)  
+3. **`system.ts`** - Wire deciders, process managers, projectors
+4. **`components/`** - React UI with trace panel for debugging
+
+### Learning from Examples
+
+Study these working examples in the repository:
+- **[Counter](https://github.com/mean-machine-gc/protopal/tree/main/examples/counter)** - Basic concepts with validation
+- **[Todo](https://github.com/mean-machine-gc/protopal/tree/main/examples/todo)** - CRUD with state transitions
+- **[Ecommerce](https://github.com/mean-machine-gc/protopal/tree/main/examples/ecommerce)** - Complex domain with process managers
+
+### Complete Agent Guide
+
+📖 **[Read the comprehensive agent instructions →](https://github.com/mean-machine-gc/protopal/blob/main/AGENT.md)**
+
+The AGENT.md file contains detailed patterns, examples, and best practices for building domain prototypes.
+
+---
 
 ### Key Features
 
@@ -16,7 +58,9 @@ Protopal helps you discover domain models by building working prototypes that do
 - **Zero Boilerplate**: Focus on your domain, not infrastructure
 - **Command Validation**: Optional Zod schemas for runtime validation
 
-## Quick Start
+## For Developers
+
+### Installation
 
 ```bash
 npm install protopal

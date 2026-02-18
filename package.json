@@ -1,7 +1,7 @@
 {
   "name": "protopal",
-  "version": "0.1.1",
-  "description": "Event sourcing runtime for prototyping domain models through interactive React applications",
+  "version": "0.1.2",
+  "description": "Agent-friendly event sourcing runtime for prototyping domain models through interactive React applications",
   "type": "module",
   "main": "./src/index.ts",
   "module": "./src/index.ts",

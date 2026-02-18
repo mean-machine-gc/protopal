@@ -1,0 +1,299 @@
+.app {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.app-header h1 {
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.app-header p {
+  color: #666;
+  font-size: 1rem;
+}
+
+/* Stats */
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #007acc;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+/* Add Todo Form */
+.add-todo-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.add-todo-input {
+  flex: 1;
+  padding: 0.75rem;
+  border: 2px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.add-todo-input:focus {
+  outline: none;
+  border-color: #007acc;
+}
+
+.add-todo-btn {
+  padding: 0.75rem 1.5rem;
+  background: #007acc;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-todo-btn:hover:not(:disabled) {
+  background: #005fa3;
+}
+
+.add-todo-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Todo Sections */
+.todo-section {
+  margin-bottom: 2rem;
+}
+
+.todo-section h2 {
+  color: #333;
+  border-bottom: 2px solid #e1e5e9;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.empty-message {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Todo Items */
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.todo-item {
+  padding: 1rem;
+  border: 2px solid;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.todo-item--active {
+  border-color: #28a745;
+  background: #f8fff9;
+}
+
+.todo-item--completed {
+  border-color: #007acc;
+  background: #f0f8ff;
+}
+
+.todo-item--archived {
+  border-color: #6c757d;
+  background: #f8f9fa;
+  opacity: 0.7;
+}
+
+.todo-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.todo-text {
+  flex: 1;
+  font-size: 1rem;
+}
+
+.todo-item--completed .todo-text {
+  text-decoration: line-through;
+  color: #666;
+}
+
+.todo-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.todo-actions button {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.btn-complete {
+  background: #28a745;
+  color: white;
+}
+
+.btn-complete:hover {
+  background: #218838;
+}
+
+.btn-edit {
+  background: #ffc107;
+  color: #212529;
+}
+
+.btn-edit:hover {
+  background: #e0a800;
+}
+
+.btn-archive {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-archive:hover {
+  background: #5a6268;
+}
+
+.btn-reactivate {
+  background: #17a2b8;
+  color: white;
+}
+
+.btn-reactivate:hover {
+  background: #138496;
+}
+
+.todo-status {
+  color: #666;
+  font-size: 0.875rem;
+}
+
+/* Edit Mode */
+.todo-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.todo-edit input {
+  padding: 0.5rem;
+  border: 2px solid #007acc;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.todo-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.todo-edit-actions button {
+  padding: 0.25rem 0.75rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+/* Trace Panel */
+.trace-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #2d3748;
+  color: white;
+  max-height: 300px;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.trace-toggle {
+  width: 100%;
+  padding: 0.75rem;
+  background: #4a5568;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.trace-toggle:hover {
+  background: #2d3748;
+}
+
+.trace-entries {
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.trace-entry {
+  padding: 0.25rem 0.5rem;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.75rem;
+  margin-bottom: 0.125rem;
+  border-radius: 2px;
+}
+
+.trace-command {
+  background: #3182ce;
+  color: #bee3f8;
+}
+
+.trace-event {
+  background: #38a169;
+  color: #c6f6d5;
+}
+
+.trace-error {
+  background: #e53e3e;
+  color: #fed7d7;
+}
+
+.trace-default {
+  background: #4a5568;
+  color: #e2e8f0;
+}

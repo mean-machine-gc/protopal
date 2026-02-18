@@ -1,0 +1,56 @@
+{
+  "name": "protopal",
+  "version": "0.1.0",
+  "description": "Event sourcing runtime for prototyping domain models through interactive React applications",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./validation": {
+      "import": "./src/validation.ts",
+      "types": "./src/validation.ts"
+    },
+    "./persistence": {
+      "import": "./src/persistence.ts",
+      "types": "./src/persistence.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck",
+    "pack-test": "npm pack"
+  },
+  "keywords": [
+    "event-sourcing",
+    "domain-driven-design",
+    "ddd",
+    "react",
+    "signals",
+    "prototyping"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@preact/signals-react": "^2.0.0",
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0"
+  },
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@preact/signals-react": "^2.0.0",
+    "@types/react": "^18.2.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "src",
+    "README.md", 
+    "LICENSE",
+    "CHANGELOG.md"
+  ]
+}

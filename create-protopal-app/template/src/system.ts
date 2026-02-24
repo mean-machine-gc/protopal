@@ -17,7 +17,7 @@ type ItemEvent =
   | { type: 'ItemArchived'; payload: { id: EntityId; archivedAt: Timestamp; reason: string } }
   | { type: 'ItemReactivated'; payload: { id: EntityId; updatedAt: Timestamp } }
   | { type: 'ItemDeleted'; payload: { id: EntityId } }
-  | { type: 'ItemCommandFailed'; payload: { command: string; reason: string } };
+  | { type: 'DecisionFailed'; command: string; constraints: string[] };
 
 // State
 type ItemState = {
@@ -35,12 +35,23 @@ const itemDecider: DeciderConfig<ItemCommand, ItemState, ItemContext, ItemEvent>
   name: 'Items',
   initialState: { items: {} },
   
-  resolveContext: async () => ({
-    timestamp: new Date().toISOString(),
-    // In production, get user from auth
-  }),
+  resolveContext: (cmd) => {
+    // Pattern match on command type to provide appropriate context
+    switch (cmd.type) {
+      case 'CreateItem':
+      case 'CompleteItem':
+      case 'ArchiveItem':
+      case 'ReactivateItem':
+      case 'DeleteItem':
+      default:
+        return {
+          timestamp: new Date().toISOString(),
+          // In production, get user from auth
+        };
+    }
+  },
   
-  decide: (cmd, state, ctx) => {
+  decide: (cmd, state, ctx): ItemEvent[] => {
     switch (cmd.type) {
       case 'CreateItem': {
         const id = crypto.randomUUID();
@@ -57,16 +68,10 @@ const itemDecider: DeciderConfig<ItemCommand, ItemState, ItemContext, ItemEvent>
       case 'CompleteItem': {
         const item = state.items[cmd.payload.id];
         if (!item) {
-          return [{
-            type: 'ItemCommandFailed',
-            payload: { command: cmd.type, reason: 'Item not found' }
-          }];
+          return [{ type: 'DecisionFailed', command: 'CompleteItem', constraints: ['item-not-found'] }];
         }
         if (item.status.kind !== 'Active') {
-          return [{
-            type: 'ItemCommandFailed',
-            payload: { command: cmd.type, reason: `Cannot complete ${item.status.kind} item` }
-          }];
+          return [{ type: 'DecisionFailed', command: 'CompleteItem', constraints: ['item-not-active'] }];
         }
         return [{ 
           type: 'ItemCompleted', 
@@ -77,16 +82,10 @@ const itemDecider: DeciderConfig<ItemCommand, ItemState, ItemContext, ItemEvent>
       case 'ArchiveItem': {
         const item = state.items[cmd.payload.id];
         if (!item) {
-          return [{
-            type: 'ItemCommandFailed',
-            payload: { command: cmd.type, reason: 'Item not found' }
-          }];
+          return [{ type: 'DecisionFailed', command: 'ArchiveItem', constraints: ['item-not-found'] }];
         }
         if (item.status.kind === 'Archived') {
-          return [{
-            type: 'ItemCommandFailed',
-            payload: { command: cmd.type, reason: 'Item already archived' }
-          }];
+          return [{ type: 'DecisionFailed', command: 'ArchiveItem', constraints: ['item-already-archived'] }];
         }
         return [{ 
           type: 'ItemArchived', 
@@ -101,16 +100,10 @@ const itemDecider: DeciderConfig<ItemCommand, ItemState, ItemContext, ItemEvent>
       case 'ReactivateItem': {
         const item = state.items[cmd.payload.id];
         if (!item) {
-          return [{
-            type: 'ItemCommandFailed',
-            payload: { command: cmd.type, reason: 'Item not found' }
-          }];
+          return [{ type: 'DecisionFailed', command: 'ReactivateItem', constraints: ['item-not-found'] }];
         }
         if (item.status.kind === 'Active') {
-          return [{
-            type: 'ItemCommandFailed',
-            payload: { command: cmd.type, reason: 'Item already active' }
-          }];
+          return [{ type: 'DecisionFailed', command: 'ReactivateItem', constraints: ['item-already-active'] }];
         }
         return [{ 
           type: 'ItemReactivated', 
@@ -120,10 +113,7 @@ const itemDecider: DeciderConfig<ItemCommand, ItemState, ItemContext, ItemEvent>
       
       case 'DeleteItem': {
         if (!state.items[cmd.payload.id]) {
-          return [{
-            type: 'ItemCommandFailed',
-            payload: { command: cmd.type, reason: 'Item not found' }
-          }];
+          return [{ type: 'DecisionFailed', command: 'DeleteItem', constraints: ['item-not-found'] }];
         }
         return [{ type: 'ItemDeleted', payload: cmd.payload }];
       }
@@ -193,8 +183,9 @@ const itemDecider: DeciderConfig<ItemCommand, ItemState, ItemContext, ItemEvent>
         const { [event.payload.id]: _, ...remaining } = state.items;
         return { items: remaining };
       }
-      
-      case 'ItemCommandFailed':
+        
+      case 'DecisionFailed':
+        // Could track failure count, last failure, etc.
         return state;
         
       default:

@@ -25,7 +25,7 @@ type TodoEvent =
   | { type: 'TodoReactivated'; payload: { id: TodoId; reactivatedAt: Timestamp } }
   | { type: 'TodoArchived'; payload: { id: TodoId; archivedAt: Timestamp } }
   | { type: 'TodoTextUpdated'; payload: { id: TodoId; text: string; updatedAt: Timestamp } }
-  | { type: 'TodoCommandFailed'; payload: { command: string; reason: string } };
+  | { type: 'DecisionFailed'; command: string; constraints: string[] };
 
 type TodoState = {
   todos: Record<TodoId, Todo>;
@@ -81,18 +81,26 @@ const todoDecider: DeciderConfig<TodoCommand, TodoState, TodoContext, TodoEvent>
   commandSchema: todoCommandSchema,
   initialState: { todos: {} },
   
-  resolveContext: async (): Promise<TodoContext> => ({
-    timestamp: new Date().toISOString(),
-  }),
+  resolveContext: (cmd): TodoContext => {
+    // Pattern match on command type to provide appropriate context
+    switch (cmd.type) {
+      case 'AddTodo':
+      case 'CompleteTodo':
+      case 'ReactivateTodo':
+      case 'ArchiveTodo':
+      case 'UpdateTodoText':
+      default:
+        return {
+          timestamp: new Date().toISOString(),
+        };
+    }
+  },
   
-  decide: (cmd, state, ctx) => {
+  decide: (cmd, state, ctx): TodoEvent[] => {
     switch (cmd.type) {
       case 'AddTodo': {
         if (state.todos[cmd.payload.id]) {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Todo already exists' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'AddTodo', constraints: ['todo-already-exists'] }];
         }
         return [{ 
           type: 'TodoAdded', 
@@ -103,16 +111,10 @@ const todoDecider: DeciderConfig<TodoCommand, TodoState, TodoContext, TodoEvent>
       case 'CompleteTodo': {
         const todo = state.todos[cmd.payload.id];
         if (!todo) {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Todo not found' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'CompleteTodo', constraints: ['todo-not-found'] }];
         }
         if (todo.status.kind !== 'Active') {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Todo is not active' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'CompleteTodo', constraints: ['todo-not-active'] }];
         }
         return [{ 
           type: 'TodoCompleted', 
@@ -123,16 +125,10 @@ const todoDecider: DeciderConfig<TodoCommand, TodoState, TodoContext, TodoEvent>
       case 'ReactivateTodo': {
         const todo = state.todos[cmd.payload.id];
         if (!todo) {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Todo not found' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'ReactivateTodo', constraints: ['todo-not-found'] }];
         }
         if (todo.status.kind !== 'Completed') {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Todo is not completed' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'ReactivateTodo', constraints: ['todo-not-completed'] }];
         }
         return [{ 
           type: 'TodoReactivated', 
@@ -143,16 +139,10 @@ const todoDecider: DeciderConfig<TodoCommand, TodoState, TodoContext, TodoEvent>
       case 'ArchiveTodo': {
         const todo = state.todos[cmd.payload.id];
         if (!todo) {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Todo not found' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'ArchiveTodo', constraints: ['todo-not-found'] }];
         }
         if (todo.status.kind === 'Archived') {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Todo already archived' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'ArchiveTodo', constraints: ['todo-already-archived'] }];
         }
         return [{ 
           type: 'TodoArchived', 
@@ -163,16 +153,10 @@ const todoDecider: DeciderConfig<TodoCommand, TodoState, TodoContext, TodoEvent>
       case 'UpdateTodoText': {
         const todo = state.todos[cmd.payload.id];
         if (!todo) {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Todo not found' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'UpdateTodoText', constraints: ['todo-not-found'] }];
         }
         if (todo.status.kind === 'Archived') {
-          return [{ 
-            type: 'TodoCommandFailed', 
-            payload: { command: cmd.type, reason: 'Cannot edit archived todo' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'UpdateTodoText', constraints: ['cannot-edit-archived-todo'] }];
         }
         return [{ 
           type: 'TodoTextUpdated', 
@@ -248,7 +232,8 @@ const todoDecider: DeciderConfig<TodoCommand, TodoState, TodoContext, TodoEvent>
           },
         };
         
-      case 'TodoCommandFailed':
+      case 'DecisionFailed':
+        // Could track failure count, last failure, etc.
         return state;
         
       default:

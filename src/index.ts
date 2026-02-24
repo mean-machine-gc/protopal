@@ -13,6 +13,7 @@ export {
   EventBus,
   
   // Helper functions
+  createSystem,
   createDecider,
   createProjector,
   createProcessManager,
@@ -29,7 +30,9 @@ export {
   type ProjectorConfig,
   type Projector,
   type ProcessManagerConfig,
+  type SystemConfig,
   type TraceEntry,
+  type DispatchResult,
   type Listener,
   type Unsubscribe,
 } from './protopal';

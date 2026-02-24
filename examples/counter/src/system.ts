@@ -23,7 +23,7 @@ type CounterEvent =
   | { type: 'Paused'; payload: { mode: 'Counting' | 'Countdown'; timestamp: Timestamp } }
   | { type: 'Resumed'; payload: { timestamp: Timestamp } }
   | { type: 'TargetReached'; payload: { value: number; timestamp: Timestamp } }
-  | { type: 'CounterCommandFailed'; payload: { command: string; reason: string } };
+  | { type: 'DecisionFailed'; command: string; constraints: string[] };
 
 // State is now just a Counter
 type CounterState = Counter;
@@ -83,11 +83,24 @@ const counterDecider: DeciderConfig<CounterCommand, CounterState, CounterContext
     createdAt: new Date().toISOString(),
   },
   
-  resolveContext: async (): Promise<CounterContext> => ({
-    timestamp: new Date().toISOString(),
-  }),
+  resolveContext: (cmd): CounterContext => {
+    // Pattern match on command type to provide appropriate context
+    switch (cmd.type) {
+      case 'Increment':
+      case 'Decrement':
+      case 'Reset':
+      case 'SetCountdownTarget':
+      case 'ChangeMode':
+      case 'Pause':
+      case 'Resume':
+      default:
+        return {
+          timestamp: new Date().toISOString(),
+        };
+    }
+  },
   
-  decide: (cmd, state, ctx) => {
+  decide: (cmd, state, ctx): CounterEvent[] => {
     switch (cmd.type) {
       case 'Increment': {
         const newValue = state.value + cmd.payload.amount;
@@ -109,10 +122,7 @@ const counterDecider: DeciderConfig<CounterCommand, CounterState, CounterContext
         
       case 'Decrement': {
         if (state.value - cmd.payload.amount < 0) {
-          return [{ 
-            type: 'CounterCommandFailed', 
-            payload: { command: cmd.type, reason: 'Cannot go below zero' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'Decrement', constraints: ['cannot-go-below-zero'] }];
         }
         const newValue = state.value - cmd.payload.amount;
         return [{ 
@@ -129,16 +139,10 @@ const counterDecider: DeciderConfig<CounterCommand, CounterState, CounterContext
         
       case 'SetCountdownTarget': {
         if (state.mode.kind !== 'Countdown') {
-          return [{
-            type: 'CounterCommandFailed',
-            payload: { command: cmd.type, reason: 'Not in countdown mode' }
-          }];
+          return [{ type: 'DecisionFailed', command: 'SetCountdownTarget', constraints: ['not-in-countdown-mode'] }];
         }
         if (cmd.payload.target <= 0) {
-          return [{ 
-            type: 'CounterCommandFailed', 
-            payload: { command: cmd.type, reason: 'Target must be positive' } 
-          }];
+          return [{ type: 'DecisionFailed', command: 'SetCountdownTarget', constraints: ['target-must-be-positive'] }];
         }
         return [{ 
           type: 'CountdownTargetSet', 
@@ -148,15 +152,17 @@ const counterDecider: DeciderConfig<CounterCommand, CounterState, CounterContext
       
       case 'ChangeMode': {
         if (state.mode.kind === 'Paused') {
-          return [];
+          return { success: true, events: [] };
         }
         if (state.mode.kind === 'Counting' && cmd.payload.mode === 'counting' ||
             state.mode.kind === 'Countdown' && cmd.payload.mode === 'countdown') {
           return []; // Already in this mode
         }
+        const from = state.mode.kind;
+        const to = cmd.payload.mode === 'counting' ? 'Counting' : 'Countdown' as const;
         return [{
           type: 'ModeChanged',
-          payload: { from: state.mode.kind, to: cmd.payload.mode, timestamp: ctx.timestamp }
+          payload: { from, to, timestamp: ctx.timestamp }
         }];
       }
       
@@ -173,10 +179,7 @@ const counterDecider: DeciderConfig<CounterCommand, CounterState, CounterContext
       
       case 'Resume': {
         if (state.mode.kind !== 'Paused') {
-          return [{
-            type: 'CounterCommandFailed',
-            payload: { command: cmd.type, reason: 'Not paused' }
-          }];
+          return [{ type: 'DecisionFailed', command: 'Resume', constraints: ['not-paused'] }];
         }
         return [{ type: 'Resumed', payload: { timestamp: ctx.timestamp } }];
       }
@@ -245,13 +248,13 @@ const counterDecider: DeciderConfig<CounterCommand, CounterState, CounterContext
       case 'ModeChanged':
         return {
           ...state,
-          mode: event.payload.to === 'counting'
+          mode: event.payload.to === 'Counting'
             ? { kind: 'Counting', startedAt: event.payload.timestamp }
             : { kind: 'Countdown', targetValue: 10 }, // Default target
           history: addHistory({
             kind: 'ModeChanged',
             from: event.payload.from,
-            to: event.payload.to === 'counting' ? 'Counting' : 'Countdown',
+            to: event.payload.to,
             timestamp: event.payload.timestamp,
           }),
         };
@@ -294,7 +297,8 @@ const counterDecider: DeciderConfig<CounterCommand, CounterState, CounterContext
         }
         return state;
         
-      case 'CounterCommandFailed':
+      case 'DecisionFailed':
+        // Could track failure count, last failure, etc.
         return state;
         
       default:

@@ -91,22 +91,26 @@ type CounterEvent =
   | { type: 'Decremented'; payload: { amount: number } }
   | { type: 'Reset' }
   | { type: 'ModeChanged'; payload: { mode: 'counting' | 'countdown' } }
-  | { type: 'CounterCommandFailed'; payload: { reason: string } };
+  | { type: 'DecisionFailed'; command: string; constraints: string[] };
 
 // Create decider
 const counterDecider = {
   name: 'Counter',
   initialState: { value: 0, clicks: 0 },
   
-  decide: (cmd, state) => {
+  decide: (cmd, state): CounterEvent[] => {
     switch (cmd.type) {
       case 'Increment':
         return [{ type: 'Incremented', payload: cmd.payload }];
       case 'Decrement':
-        if (state.value - cmd.payload.amount < 0) return [];
+        if (state.value - cmd.payload.amount < 0) {
+          return [{ type: 'DecisionFailed', command: 'Decrement', constraints: ['insufficient-value'] }];
+        }
         return [{ type: 'Decremented', payload: cmd.payload }];
       case 'Reset':
         return [{ type: 'Reset' }];
+      default:
+        return [];
     }
   },
   
@@ -118,10 +122,24 @@ const counterDecider = {
         return { value: state.value - event.payload.amount, clicks: state.clicks + 1 };
       case 'Reset':
         return { value: 0, clicks: 0 };
+      case 'DecisionFailed':
+        // Could track failure count, last failure, etc.
+        return state;
+      default:
+        return state;
     }
   },
   
-  resolveContext: async () => ({}),
+  resolveContext: (cmd) => {
+    // Pattern match on command type to provide appropriate context
+    switch (cmd.type) {
+      case 'Increment':
+      case 'Decrement':
+      case 'Reset':
+      default:
+        return {}; // Mock context or read from projectors
+    }
+  }, // Always synchronous - no async!
 };
 
 // Wire the system
@@ -144,6 +162,14 @@ import React from 'react';
 import { counter, isPositive } from './system';
 
 function Counter() {
+  // Dispatch is synchronous - no await needed!
+  const handleDecrement = () => {
+    const result = counter.dispatch({ type: 'Decrement', payload: { amount: 1 } });
+    if (!result.success) {
+      alert('Cannot go negative!');
+    }
+  };
+
   return (
     <div>
       <h1>Count: {counter.state.value.value}</h1>
@@ -153,7 +179,7 @@ function Counter() {
       <button onClick={() => counter.dispatch({ type: 'Increment', payload: { amount: 1 } })}>
         +1
       </button>
-      <button onClick={() => counter.dispatch({ type: 'Decrement', payload: { amount: 1 } })}>
+      <button onClick={handleDecrement}>
         -1
       </button>
       <button onClick={() => counter.dispatch({ type: 'Reset' })}>
@@ -201,9 +227,9 @@ type BadOrderStatus = {
 
 Deciders are the heart of your domain model:
 
-- **decide**: Pure function containing all business rules
+- **decide**: Pure function containing all business rules, returns `DecideResult`
 - **evolve**: Pure function that applies events to state
-- **resolveContext**: Async boundary for external data
+- **resolveContext**: Synchronous context provider (mock data, read models)
 
 ### 3. Process Managers
 

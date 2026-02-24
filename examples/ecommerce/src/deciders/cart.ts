@@ -103,8 +103,9 @@ export type CartEvent =
       };
     }
   | {
-      type: 'CartCommandFailed';
-      payload: { command: string; reason: string };
+      type: 'DecisionFailed';
+      command: string;
+      constraints: string[];
     };
 
 // State
@@ -134,7 +135,7 @@ export const cartDecider: DeciderConfig<
   name: 'Cart',
   initialState: { carts: {} },
 
-  resolveContext: async (cmd) => {
+  resolveContext: (cmd) => {
     const timestamp = new Date().toISOString();
     
     // In a real system, we'd fetch product info here
@@ -155,16 +156,11 @@ export const cartDecider: DeciderConfig<
     return { timestamp };
   },
 
-  decide: (cmd, state, ctx) => {
+  decide: (cmd, state, ctx): CartEvent[] => {
     switch (cmd.type) {
       case 'CreateCart': {
         if (state.carts[cmd.payload.id]) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'cart-already-exists' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'CreateCart', constraints: ['cart-already-exists'] }];
         }
         return [
           {
@@ -181,30 +177,15 @@ export const cartDecider: DeciderConfig<
       case 'AddToCart': {
         const cart = state.carts[cmd.payload.cartId];
         if (!cart) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'cart-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'AddToCart', constraints: ['cart-not-found'] }];
         }
 
         if (!ctx.productInfo?.available) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'product-not-available' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'AddToCart', constraints: ['product-not-available'] }];
         }
 
         if (ctx.productInfo.stock < cmd.payload.quantity) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'insufficient-stock' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'AddToCart', constraints: ['insufficient-stock'] }];
         }
 
         // Check if item already in cart
@@ -215,12 +196,7 @@ export const cartDecider: DeciderConfig<
         if (existingItem) {
           const newQuantity = existingItem.quantity + cmd.payload.quantity;
           if (newQuantity > ctx.productInfo.stock) {
-            return [
-              {
-                type: 'CartCommandFailed',
-                payload: { command: cmd.type, reason: 'insufficient-stock' },
-              },
-            ];
+            return [{ type: 'DecisionFailed', command: 'AddToCart', constraints: ['insufficient-stock'] }];
           }
           return [
             {
@@ -251,24 +227,14 @@ export const cartDecider: DeciderConfig<
       case 'UpdateCartItemQuantity': {
         const cart = state.carts[cmd.payload.cartId];
         if (!cart) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'cart-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'UpdateCartItemQuantity', constraints: ['cart-not-found'] }];
         }
 
         const item = cart.items.find(
           (item) => item.productId === cmd.payload.productId
         );
         if (!item) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'item-not-in-cart' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'UpdateCartItemQuantity', constraints: ['item-not-in-cart'] }];
         }
 
         if (cmd.payload.quantity === 0) {
@@ -299,24 +265,14 @@ export const cartDecider: DeciderConfig<
       case 'RemoveFromCart': {
         const cart = state.carts[cmd.payload.cartId];
         if (!cart) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'cart-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'RemoveFromCart', constraints: ['cart-not-found'] }];
         }
 
         const item = cart.items.find(
           (item) => item.productId === cmd.payload.productId
         );
         if (!item) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'item-not-in-cart' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'RemoveFromCart', constraints: ['item-not-in-cart'] }];
         }
 
         return [
@@ -333,21 +289,11 @@ export const cartDecider: DeciderConfig<
       case 'ClearCart': {
         const cart = state.carts[cmd.payload.cartId];
         if (!cart) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'cart-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ClearCart', constraints: ['cart-not-found'] }];
         }
 
         if (cart.items.length === 0) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'cart-already-empty' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ClearCart', constraints: ['cart-already-empty'] }];
         }
 
         return [
@@ -361,21 +307,11 @@ export const cartDecider: DeciderConfig<
       case 'CheckoutCart': {
         const cart = state.carts[cmd.payload.cartId];
         if (!cart) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'cart-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'CheckoutCart', constraints: ['cart-not-found'] }];
         }
 
         if (cart.items.length === 0) {
-          return [
-            {
-              type: 'CartCommandFailed',
-              payload: { command: cmd.type, reason: 'cart-empty' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'CheckoutCart', constraints: ['cart-empty'] }];
         }
 
         return [
@@ -471,7 +407,8 @@ export const cartDecider: DeciderConfig<
         const { [event.payload.cartId]: _, ...remainingCarts } = state.carts;
         return { carts: remainingCarts };
 
-      case 'CartCommandFailed':
+      case 'DecisionFailed':
+        // Could track failure count, last failure, etc.
         return state;
 
       default:

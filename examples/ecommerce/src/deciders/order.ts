@@ -146,10 +146,7 @@ export type OrderEvent =
         refundedAt: Timestamp;
       };
     }
-  | {
-      type: 'OrderCommandFailed';
-      payload: { command: string; reason: string };
-    };
+  | { type: 'DecisionFailed'; command: string; constraints: string[] };
 
 // State
 export type OrderState = {
@@ -187,30 +184,37 @@ export const orderDecider: DeciderConfig<
   name: 'Order',
   initialState: { orders: {} },
 
-  resolveContext: async (cmd) => {
-    const timestamp = new Date().toISOString();
-    
-    // Mock payment processing
-    if (cmd.type === 'ConfirmPayment') {
-      return {
-        timestamp,
-        paymentSuccess: Math.random() > 0.1, // 90% success rate
-      };
+  resolveContext: (cmd) => {
+    switch (cmd.type) {
+      case 'CreateOrder':
+        return { timestamp: new Date().toISOString() };
+      case 'ProcessPayment':
+        return { timestamp: new Date().toISOString() };
+      case 'ConfirmPayment':
+        return {
+          timestamp: new Date().toISOString(),
+          paymentSuccess: Math.random() > 0.1, // 90% success rate
+        };
+      case 'FailPayment':
+        return { timestamp: new Date().toISOString() };
+      case 'ShipOrder':
+        return { timestamp: new Date().toISOString() };
+      case 'DeliverOrder':
+        return { timestamp: new Date().toISOString() };
+      case 'CancelOrder':
+        return { timestamp: new Date().toISOString() };
+      case 'RefundOrder':
+        return { timestamp: new Date().toISOString() };
+      default:
+        return { timestamp: new Date().toISOString() };
     }
-    
-    return { timestamp };
   },
 
-  decide: (cmd, state, ctx) => {
+  decide: (cmd, state, ctx): OrderEvent[] => {
     switch (cmd.type) {
       case 'CreateOrder': {
         if (state.orders[cmd.payload.orderId]) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-already-exists' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'CreateOrder', constraints: ['order-already-exists'] }];
         }
 
         const items: OrderItem[] = cmd.payload.items.map((item) => ({
@@ -242,21 +246,11 @@ export const orderDecider: DeciderConfig<
       case 'ProcessPayment': {
         const order = state.orders[cmd.payload.orderId];
         if (!order) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ProcessPayment', constraints: ['order-not-found'] }];
         }
 
         if (order.status.kind !== 'Pending') {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'invalid-order-status' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ProcessPayment', constraints: ['invalid-order-status'] }];
         }
 
         return [
@@ -273,21 +267,11 @@ export const orderDecider: DeciderConfig<
       case 'ConfirmPayment': {
         const order = state.orders[cmd.payload.orderId];
         if (!order) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ConfirmPayment', constraints: ['order-not-found'] }];
         }
 
         if (order.status.kind !== 'PaymentProcessing') {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'not-processing-payment' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ConfirmPayment', constraints: ['not-processing-payment'] }];
         }
 
         if (ctx.paymentSuccess) {
@@ -317,21 +301,11 @@ export const orderDecider: DeciderConfig<
       case 'FailPayment': {
         const order = state.orders[cmd.payload.orderId];
         if (!order) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'FailPayment', constraints: ['order-not-found'] }];
         }
 
         if (order.status.kind !== 'PaymentProcessing') {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'not-processing-payment' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'FailPayment', constraints: ['not-processing-payment'] }];
         }
 
         return [
@@ -348,21 +322,11 @@ export const orderDecider: DeciderConfig<
       case 'ShipOrder': {
         const order = state.orders[cmd.payload.orderId];
         if (!order) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ShipOrder', constraints: ['order-not-found'] }];
         }
 
         if (order.status.kind !== 'Confirmed') {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-confirmed' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ShipOrder', constraints: ['order-not-confirmed'] }];
         }
 
         return [
@@ -380,21 +344,11 @@ export const orderDecider: DeciderConfig<
       case 'DeliverOrder': {
         const order = state.orders[cmd.payload.orderId];
         if (!order) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'DeliverOrder', constraints: ['order-not-found'] }];
         }
 
         if (order.status.kind !== 'Shipped') {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-shipped' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'DeliverOrder', constraints: ['order-not-shipped'] }];
         }
 
         return [
@@ -411,22 +365,12 @@ export const orderDecider: DeciderConfig<
       case 'CancelOrder': {
         const order = state.orders[cmd.payload.orderId];
         if (!order) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'CancelOrder', constraints: ['order-not-found'] }];
         }
 
         // Can only cancel pending or payment failed orders
         if (order.status.kind !== 'Pending' && order.status.kind !== 'PaymentFailed') {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'cannot-cancel-order' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'CancelOrder', constraints: ['cannot-cancel-order'] }];
         }
 
         return [
@@ -444,23 +388,13 @@ export const orderDecider: DeciderConfig<
       case 'RefundOrder': {
         const order = state.orders[cmd.payload.orderId];
         if (!order) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'order-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'RefundOrder', constraints: ['order-not-found'] }];
         }
 
         // Can refund confirmed, shipped, or delivered orders
         const refundableStatuses: OrderStatus['kind'][] = ['Confirmed', 'Shipped', 'Delivered'];
         if (!refundableStatuses.includes(order.status.kind)) {
-          return [
-            {
-              type: 'OrderCommandFailed',
-              payload: { command: cmd.type, reason: 'cannot-refund-order' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'RefundOrder', constraints: ['cannot-refund-order'] }];
         }
 
         return [
@@ -596,7 +530,8 @@ export const orderDecider: DeciderConfig<
           },
         };
 
-      case 'OrderCommandFailed':
+      case 'DecisionFailed':
+        // Could track failure count, last failure, etc.
         return state;
 
       default:

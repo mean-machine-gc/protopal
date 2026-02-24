@@ -84,10 +84,7 @@ export type CatalogEvent =
       type: 'ProductReactivated';
       payload: { id: EntityId };
     }
-  | {
-      type: 'CatalogCommandFailed';
-      payload: { command: string; reason: string };
-    };
+  | { type: 'DecisionFailed'; command: string; constraints: string[] };
 
 // State
 export type CatalogState = {
@@ -109,20 +106,30 @@ export const catalogDecider: DeciderConfig<
   name: 'Catalog',
   initialState: { products: {} },
 
-  resolveContext: async () => ({
-    timestamp: new Date().toISOString(),
-  }),
+  resolveContext: (cmd) => {
+    switch (cmd.type) {
+      case 'AddProduct':
+        return { timestamp: new Date().toISOString() };
+      case 'UpdateProductPrice':
+        return { timestamp: new Date().toISOString() };
+      case 'UpdateProductStock':
+        return { timestamp: new Date().toISOString() };
+      case 'AdjustStock':
+        return { timestamp: new Date().toISOString() };
+      case 'DiscontinueProduct':
+        return { timestamp: new Date().toISOString() };
+      case 'ReactivateProduct':
+        return { timestamp: new Date().toISOString() };
+      default:
+        return { timestamp: new Date().toISOString() };
+    }
+  },
 
-  decide: (cmd, state, ctx) => {
+  decide: (cmd, state, ctx): CatalogEvent[] => {
     switch (cmd.type) {
       case 'AddProduct': {
         if (state.products[cmd.payload.id]) {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'product-already-exists' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'AddProduct', constraints: ['product-already-exists'] }];
         }
         return [{ type: 'ProductAdded', payload: cmd.payload }];
       }
@@ -130,20 +137,10 @@ export const catalogDecider: DeciderConfig<
       case 'UpdateProductPrice': {
         const product = state.products[cmd.payload.id];
         if (!product) {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'product-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'UpdateProductPrice', constraints: ['product-not-found'] }];
         }
         if (product.status.kind === 'Discontinued') {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'product-discontinued' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'UpdateProductPrice', constraints: ['product-discontinued'] }];
         }
         return [
           {
@@ -160,12 +157,7 @@ export const catalogDecider: DeciderConfig<
       case 'UpdateProductStock': {
         const product = state.products[cmd.payload.id];
         if (!product) {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'product-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'UpdateProductStock', constraints: ['product-not-found'] }];
         }
         const events: CatalogEvent[] = [
           {
@@ -197,12 +189,7 @@ export const catalogDecider: DeciderConfig<
       case 'AdjustStock': {
         const product = state.products[cmd.payload.id];
         if (!product) {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'product-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'AdjustStock', constraints: ['product-not-found'] }];
         }
         const newStock = Math.max(0, product.stock + cmd.payload.adjustment);
         const events: CatalogEvent[] = [
@@ -234,20 +221,10 @@ export const catalogDecider: DeciderConfig<
       case 'DiscontinueProduct': {
         const product = state.products[cmd.payload.id];
         if (!product) {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'product-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'DiscontinueProduct', constraints: ['product-not-found'] }];
         }
         if (product.status.kind === 'Discontinued') {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'already-discontinued' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'DiscontinueProduct', constraints: ['already-discontinued'] }];
         }
         return [{ type: 'ProductDiscontinued', payload: { id: cmd.payload.id } }];
       }
@@ -255,20 +232,10 @@ export const catalogDecider: DeciderConfig<
       case 'ReactivateProduct': {
         const product = state.products[cmd.payload.id];
         if (!product) {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'product-not-found' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ReactivateProduct', constraints: ['product-not-found'] }];
         }
         if (product.status.kind !== 'Discontinued') {
-          return [
-            {
-              type: 'CatalogCommandFailed',
-              payload: { command: cmd.type, reason: 'not-discontinued' },
-            },
-          ];
+          return [{ type: 'DecisionFailed', command: 'ReactivateProduct', constraints: ['not-discontinued'] }];
         }
         return [{ type: 'ProductReactivated', payload: { id: cmd.payload.id } }];
       }
@@ -367,7 +334,8 @@ export const catalogDecider: DeciderConfig<
           },
         };
 
-      case 'CatalogCommandFailed':
+      case 'DecisionFailed':
+        // Could track failure count, last failure, etc.
         return state;
 
       default:

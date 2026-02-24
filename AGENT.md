@@ -26,11 +26,13 @@ The protopal runtime uses `@preact/signals-react` for state and a minimal `Event
 ### Architecture
 
 ```
-dispatch(cmd) → resolveContext → decide(cmd, state, ctx) → events
-                                    ↑                         │
-                            state.value                       ├→ evolve → state.value = newState
-                                                              ├→ project → readState.value = newReadState
-                                                              └→ processManager → dispatch(cmd) (loop)
+dispatch(cmd) → resolveContext → decide(cmd, state, ctx) → Event[]
+     (sync!)         (sync!)            ↑                       ↓
+                                   state.value               events
+                                                                │
+                                              ├→ evolve → state.value = newState
+                                              ├→ project → readState.value = newReadState
+                                              └→ processManager → dispatch(cmd) (loop)
 ```
 
 - **Signals** handle: write state, read state, derived views, trace log.
@@ -53,8 +55,9 @@ const laboratory = system.addDecider(laboratoryDeciderConfig);
 // Read state in JSX — auto-re-renders, zero hooks
 laboratory.state.value.laboratories
 
-// Dispatch a command
-laboratory.dispatch({ type: 'RegisterLaboratory', payload: { ... } });
+// Dispatch a command - synchronous, returns Event[]
+const events = laboratory.dispatch({ type: 'RegisterLaboratory', payload: { ... } });
+// events = [...domain events] or [{ type: 'DecisionFailed', ... }]
 ```
 
 **Projector** — returns `{ name, state: Signal<TReadState>, destroy }`
@@ -213,7 +216,7 @@ type LaboratoryEvent =
   | { type: 'LaboratorySuspended'; payload: { id: EntityId; reason: string; suspendedAt: Timestamp } }
   | { type: 'ReviewInitiated'; payload: { id: EntityId; reviewer: string; startedAt: Timestamp } }
   | { type: 'ReviewCompleted'; payload: { id: EntityId; outcome: ReviewOutcome; completedAt: Timestamp } }
-  | { type: 'LaboratoryCommandFailed'; payload: { command: string; reason: string } };
+  | { type: 'DecisionFailed'; command: string; constraints: string[] };
 
 // Model complex types as discriminated unions too
 type ReviewOutcome =
@@ -224,16 +227,19 @@ type ReviewOutcome =
 
 ### 3. Decide Contains All Business Rules
 
-Pure function. All guards, branching, rejection logic. Returns events — failure events for rejected commands:
+Pure function. All guards, branching, rejection logic. Returns `Event[]` — either domain events or DecisionFailed:
 
 ```typescript
-decide: (cmd, state, ctx) => {
+decide: (cmd, state, ctx): LaboratoryEvent[] => {
   switch (cmd.type) {
     case 'SuspendLaboratory': {
       const lab = state.laboratories[cmd.payload.id];
-      if (!lab || lab.status.kind !== 'Operational')
-        return [{ type: 'SuspendLaboratoryFailed',
-                  payload: { id: cmd.payload.id, reason: 'not-operational' } }];
+      if (!lab) {
+        return [{ type: 'DecisionFailed', command: cmd.type, constraints: ['laboratory-not-found'] }];
+      }
+      if (lab.status.kind !== 'Operational') {
+        return [{ type: 'DecisionFailed', command: cmd.type, constraints: ['laboratory-not-operational'] }];
+      }
       return [{ type: 'LaboratorySuspended', payload: cmd.payload }];
     }
   }
@@ -252,25 +258,41 @@ evolve: (state, event) => {
         ...lab,
         status: { kind: 'Suspended', reason: event.payload.reason },
       }));
-    case 'SuspendLaboratoryFailed':
-      return state; // no state change on failure
+    case 'DecisionFailed':
+      // DecisionFailed events don't change domain state - they're for logging/tracing
+      return state;
+    default:
+      return state;
   }
 }
 ```
 
-### 5. Context is the Async Boundary
+### 5. Context is Always Resolved via Required Function
 
-`resolveContext` is the only place async happens. Runs before decide:
+`resolveContext` is a required function that provides context data based on command type. Use pattern matching to handle different command types:
 
 ```typescript
-resolveContext: async (cmd) => {
-  if (cmd.type === 'RegisterLaboratory') {
-    // Prototype: mock data. Production: real API calls.
-    return { timestamp: new Date().toISOString(), facilityExists: true };
+resolveContext: (cmd) => {
+  switch (cmd.type) {
+    case 'RegisterLaboratory':
+      // Mock data or read from projectors for this command type
+      return { 
+        timestamp: new Date().toISOString(), 
+        facilityExists: true,
+        // Could read from projectors: inventory: inventoryView.state.value
+      };
+    case 'SuspendLaboratory':
+      return { 
+        timestamp: new Date().toISOString(),
+        maintenanceSchedule: mockMaintenanceData
+      };
+    default:
+      return { timestamp: new Date().toISOString() };
   }
-  return { timestamp: new Date().toISOString() };
 }
 ```
+
+**Key principle**: Protopal's core is always synchronous. If you need async data (API calls, database queries), that happens at the application boundary, outside Protopal. The caller resolves async data before dispatching.
 
 ### 6. Command Validation with Zod (Optional)
 
@@ -304,11 +326,27 @@ const laboratoryDecider: DeciderConfig<LaboratoryCommand, LaboratoryState, Conte
   name: 'Laboratory',
   commandSchema: laboratoryCommandSchema, // Optional validation
   initialState: { /* ... */ },
+  decide: (cmd, state, ctx): LaboratoryEvent[] => {
+    // All business rules return Event[] directly
+  },
+  evolve: (state, event) => {
+    // Handle both domain events and DecisionFailed
+  },
+  resolveContext: (cmd) => {
+    switch (cmd.type) {
+      case 'RegisterLaboratory':
+        return { timestamp: new Date().toISOString(), facilityExists: true };
+      case 'SuspendLaboratory':
+        return { timestamp: new Date().toISOString(), reason: 'maintenance' };
+      default:
+        return { timestamp: new Date().toISOString() };
+    }
+  },
   // ... rest of config
 };
 ```
 
-When validation fails, a `CommandValidationFailed` event is emitted:
+When validation fails, a `DecisionFailed` event is emitted with validation constraint details:
 
 ```typescript
 // In your components, handle validation errors
@@ -318,8 +356,8 @@ function LabForm() {
   // Subscribe to validation errors
   useEffect(() => {
     const unsub = laboratory.events.subscribe(event => {
-      if (event.type === 'CommandValidationFailed') {
-        setErrors(formatValidationErrors(event.payload.errors));
+      if (event.type === 'DecisionFailed' && event.constraints.includes('validation-failed')) {
+        setErrors(event.constraints);
       }
     });
     return unsub;
@@ -342,12 +380,16 @@ function handleSubmit(formData: unknown) {
   const result = validateCommandPayload(laboratoryCommandSchema, 'RegisterLaboratory', formData);
   
   if (result.success) {
-    laboratory.dispatch({ 
+    const events = laboratory.dispatch({ 
       type: 'RegisterLaboratory', 
       payload: result.data 
     });
+    const failed = events.find(e => e.type === 'DecisionFailed');
+    if (failed) {
+      setErrors({ general: failed.constraints.join(', ') });
+    }
   } else {
-    setErrors(formatValidationErrors(result.error.payload.errors));
+    setErrors(formatValidationErrors(result.error.errors));
   }
 }
 
@@ -469,12 +511,27 @@ function LaboratoryList() {
 ### Dispatching Commands
 
 ```tsx
+// Simple dispatch
 <button onClick={() =>
   app.laboratory.dispatch({
     type: 'SuspendLaboratory',
     payload: { id: lab.id, reason: 'Annual maintenance' },
   })
 }>
+  Suspend
+</button>
+
+// With result handling
+<button onClick={() => {
+  const events = app.laboratory.dispatch({
+    type: 'SuspendLaboratory',
+    payload: { id: lab.id, reason: 'Annual maintenance' },
+  });
+  const failed = events.find(e => e.type === 'DecisionFailed');
+  if (failed) {
+    alert(`Cannot suspend: ${failed.constraints.join(', ')}`);
+  }
+}}>
   Suspend
 </button>
 ```
@@ -754,7 +811,7 @@ prototype/
 - ✅ `useState` only for transient UI (form inputs, modals, tabs)
 - ✅ Always include the trace panel
 - ✅ State machine visibility — badges, conditional buttons
-- ✅ Failed commands as events in trace (not silent drops)
+- ✅ Failed commands as DecisionFailed events in trace (not silent drops)
 - ✅ Process managers for all cross-aggregate coordination
 - ✅ Build incrementally, validate each feature with domain expert
 - ✅ Consider adding Zod schemas for command validation
@@ -779,7 +836,7 @@ Before moving to formal specs:
 - [ ] All business rules in decide (not in components, not in evolve)
 - [ ] Evolve has zero guard conditions
 - [ ] Every lifecycle visible (badges, conditional actions)
-- [ ] Failed commands appear as events in trace
+- [ ] Failed commands appear as DecisionFailed events in trace
 - [ ] Cross-aggregate flows go through process managers (visible in trace)
 - [ ] Every screen reads from signals, projectors, or derived signals
 - [ ] No useEffect/useSelector/useReducer for domain state
